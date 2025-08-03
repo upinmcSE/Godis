@@ -84,7 +84,10 @@
     - 
 - Protocol
     - TCP
+        - 
     - UDP
+        - 
+
     - HTTP/HTTPS (build on top of TCP)
     - ...
 
@@ -128,3 +131,11 @@
         - Cons: 
             -
             -
+
+## TCP Server
+
+- What is TCP Server/
+    - 
+    - 
+    - (bắt tay 3 bước)
+    - 
