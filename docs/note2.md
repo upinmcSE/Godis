@@ -2,7 +2,6 @@
 ## Thread per connect
 
 ```go
-
 func process(conn net.Conn){
 	log.Println(conn.RemoteAddr())
 
@@ -40,9 +39,77 @@ func main() {
 		// create go routine to handle the connection
 		go process(conn)
 	}
-
 }
 
+```
+
+```go
+package main
+
+import (
+	"bufio"
+	"log"
+	"net"
+	"strings"
+	"time"
+)
+
+func process(conn net.Conn) {
+	defer conn.Close()
+	log.Println("Client connected:", conn.RemoteAddr())
+
+	// Tạo scanner để đọc dữ liệu từ client theo dòng
+	scanner := bufio.NewScanner(conn)
+
+	// Vòng lặp để đọc dữ liệu liên tục từ client
+	for scanner.Scan() {
+		message := strings.TrimSpace(scanner.Text()) // Lấy message và loại bỏ khoảng trắng
+		log.Printf("Received from %v: %s", conn.RemoteAddr(), message)
+
+
+		if message == "stop" {
+			log.Printf("Client %v sent stop, closing connection", conn.RemoteAddr())
+			conn.Write([]byte("Connection closed\r\n"))
+			break
+		}
+
+		// Xử lý message (ví dụ: giả lập thời gian xử lý)
+		time.Sleep(time.Second * 1)
+
+		
+		response := "HTTP/1.1 200 OK\r\n\r\nHello, World\r\n"
+		_, err := conn.Write([]byte(response))
+		if err != nil {
+			log.Printf("Error writing to %v: %v", conn.RemoteAddr(), err)
+			break
+		}
+	}
+
+	// Kiểm tra lỗi từ scanner
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading from %v: %v", conn.RemoteAddr(), err)
+	}
+}
+
+func main() {
+	listener, err := net.Listen("tcp", ":3000")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Server listening on :3000")
+
+	for {
+		// Chấp nhận kết nối mới
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("Error accepting connection: %v", err)
+			continue
+		}
+
+		// Xử lý kết nối trong một goroutine
+		go process(conn)
+	}
+}
 ```
 
 ## Thread pool
@@ -64,7 +131,6 @@ type Pool struct {
 	jobQueue chan Job
 	workers []*Worker
 }
-
 
 // Create a new worker
 func NewWorker (id int, jobChan chan Job) *Worker{
@@ -134,8 +200,6 @@ func main() {
 		}
 
 		pool.AddJob(conn)
-
-
 	}
 
 }

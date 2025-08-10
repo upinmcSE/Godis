@@ -35,7 +35,7 @@ func NewWorker (id int, jobChan chan Job) *Worker{
 func (w *Worker) Start(){
 	go func(){
 		for job := range w.jobChan {
-			log.Println("Worker &d is handling job from %s", w.id, job.conn.RemoteAddr())
+			log.Printf("Worker %d is handling job from %s", w.id, job.conn.RemoteAddr())
 			process(job.conn)
 		}
 	}()
