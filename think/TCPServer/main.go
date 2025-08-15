@@ -21,6 +21,7 @@ func handleConnection(conn net.Conn) {
 	conn.Close()
 }
 
+// thread per connection
 func main() {
 	listener, err := net.Listen("tcp", ":3000")
 	if err != nil {

@@ -1,5 +1,7 @@
 package main
 
-func main(){
-	
+import "github.com/upinmcSE/godis/internal/server"
+
+func main() {
+	server.RunIoMultiplexingServer()
 }

@@ -7,54 +7,54 @@ import (
 )
 
 // element in the queue
-type Job struct {
+type Task struct {
 	conn net.Conn
 }
 
 // represent the thread in the pool
 type Worker struct {
-	id      int
-	jobChan chan Job
+	id       int
+	taskChan chan Task
 }
 
 // represent the thread pool
 type Pool struct {
-	jobQueue chan Job
-	workers  []*Worker
+	taskQueue chan Task
+	workers   []*Worker
 }
 
 // create a new worker
-func NewWorker(id int, jobChan chan Job) *Worker {
+func NewWorker(id int, taskChan chan Task) *Worker {
 	return &Worker{
-		id:      id,
-		jobChan: jobChan,
+		id:       id,
+		taskChan: taskChan,
 	}
 }
 
 func (w *Worker) Start() {
 	go func() {
-		for job := range w.jobChan {
-			log.Printf("Worker %d is handling job from %s", w.id, job.conn.RemoteAddr())
-			handleConnection(job.conn)
+		for task := range w.taskChan {
+			log.Printf("Worker %d is handling job from %s", w.id, task.conn.RemoteAddr())
+			handleConnection(task.conn)
 		}
 	}()
 }
 
 func NewPool(numOfWorker int) *Pool {
 	return &Pool{
-		jobQueue: make(chan Job),
-		workers:  make([]*Worker, numOfWorker),
+		taskQueue: make(chan Task),
+		workers:   make([]*Worker, numOfWorker),
 	}
 }
 
-// push job to queue
-func (p *Pool) AddJob(conn net.Conn) {
-	p.jobQueue <- Job{conn: conn}
+// push task to queue
+func (p *Pool) AddTask(conn net.Conn) {
+	p.taskQueue <- Task{conn: conn}
 }
 
 func (p *Pool) Start() {
 	for i := 0; i < len(p.workers); i++ {
-		worker := NewWorker(i, p.jobQueue)
+		worker := NewWorker(i, p.taskQueue)
 		p.workers[i] = worker
 		worker.Start()
 	}
@@ -84,7 +84,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		//go handleConnection(conn)
-		pool.AddJob(conn)
+		pool.AddTask(conn)
 	}
 }

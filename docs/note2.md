@@ -1,240 +1,72 @@
-
-## Thread per connect
-
-```go
-func process(conn net.Conn){
-	log.Println(conn.RemoteAddr())
-
-	// read data from client
-	var buf []byte = make([]byte, 1000)
-	_, err := conn.Read(buf)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// process
-	time.Sleep((time.Second * 1))
-
-	// reply
-	//conn.Write([]byte("Hello, World"))
-	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\nHello, World\r\n"))
-	conn.Close()
-}
-
-func main() {
-	listener, err := net.Listen("tcp", ":3000")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for {
-		// conn == socket
-		conn, err := listener.Accept()
-		if err != nil{
-			log.Fatal(err)
-		}
-
-		//process(conn)
-
-		// create go routine to handle the connection
-		go process(conn)
-	}
-}
-
-```
-
-```go
-package main
-
-import (
-	"bufio"
-	"log"
-	"net"
-	"strings"
-	"time"
-)
-
-func process(conn net.Conn) {
-	defer conn.Close()
-	log.Println("Client connected:", conn.RemoteAddr())
-
-	// Tạo scanner để đọc dữ liệu từ client theo dòng
-	scanner := bufio.NewScanner(conn)
-
-	// Vòng lặp để đọc dữ liệu liên tục từ client
-	for scanner.Scan() {
-		message := strings.TrimSpace(scanner.Text()) // Lấy message và loại bỏ khoảng trắng
-		log.Printf("Received from %v: %s", conn.RemoteAddr(), message)
-
-
-		if message == "stop" {
-			log.Printf("Client %v sent stop, closing connection", conn.RemoteAddr())
-			conn.Write([]byte("Connection closed\r\n"))
-			break
-		}
-
-		// Xử lý message (ví dụ: giả lập thời gian xử lý)
-		time.Sleep(time.Second * 1)
-
-		
-		response := "HTTP/1.1 200 OK\r\n\r\nHello, World\r\n"
-		_, err := conn.Write([]byte(response))
-		if err != nil {
-			log.Printf("Error writing to %v: %v", conn.RemoteAddr(), err)
-			break
-		}
-	}
-
-	// Kiểm tra lỗi từ scanner
-	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading from %v: %v", conn.RemoteAddr(), err)
-	}
-}
-
-func main() {
-	listener, err := net.Listen("tcp", ":3000")
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Server listening on :3000")
-
-	for {
-		// Chấp nhận kết nối mới
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Printf("Error accepting connection: %v", err)
-			continue
-		}
-
-		// Xử lý kết nối trong một goroutine
-		go process(conn)
-	}
-}
-```
-
-## Thread pool
-
-```go
-// element in the queue
-type Job struct {
-	conn net.Conn
-}
-
-// represent the thread in the pool
-type Worker struct {
-	id int
-	jobChan chan Job
-}
-
-// represent the thread pool
-type Pool struct {
-	jobQueue chan Job
-	workers []*Worker
-}
-
-// Create a new worker
-func NewWorker (id int, jobChan chan Job) *Worker{
-	return &Worker{
-		id: id,
-		jobChan: jobChan,
-	}
-}
-
-func (w *Worker) Start(){
-	go func(){
-		for job := range w.jobChan {
-			log.Println("Worker &d is handling job from %s", w.id, job.conn.RemoteAddr())
-			process(job.conn)
-		}
-	}()
-}
-
-func NewPool(numOfWorker int) *Pool {
-	return &Pool{
-		jobQueue: make(chan Job),
-		workers: make([]*Worker, numOfWorker),
-	}
-}
-
-func (p *Pool) Start(){
-	for i := 0; i< len(p.workers); i++ {
-		worker := NewWorker(i, p.jobQueue)
-		p.workers[i] = worker
-		worker.Start()
-	}
-}
-
-// push job to queue
-func (p *Pool) AddJob(conn net.Conn){
-	p.jobQueue <- Job{conn: conn}
-}
-
-func process(conn net.Conn) {
-	defer conn.Close()
-	var buf []byte = make([]byte, 1000)
-	_, err := conn.Read(buf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	time.Sleep((time.Second * 1))
-	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\nHello, World\r\n"))
-}
-
-func main() {
-	listener, err := net.Listen("tcp", ":3000")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer listener.Close()
-
-	// 1 pool with 2 threads
-	pool := NewPool(2)
-	pool.Start()
-
-	for {
-		// conn == socket
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		pool.AddJob(conn)
-	}
-
-}
-```
-
 ## Everything is a file
 - a file  == a stream of bytes
-- 
+- Everything: file, directory, socket, device file
+- Everything in a computer software can be represented of as a stream of bytes
 
 ### why is it helpful?
-- 
-- 
-- 
-- 
+- Simple and consistent interface to manage different resource (biểu diễn tất cả mọi thay đổi trong 1 file)
+- Abstraction: abstract away the complex, low-level details of hardware interaction (dấu đi tất cả các low-level)
+- Unified, reusable tools: cat, grep, awk, seq
+- Unified namespace: Many resources are represented as entries in the hierarchical filesystem (mỗi file biểu diễn cho 1 resource)
+- * tùy vào đối tượng mà file này biểu diễn thì nó sẽ ở trên ram or hard-disk
 
-### File descetiptor
+### File descriptor
+- là 1 số nguyên biểu diễn 1 file đang được mở bởi OS (id của file đuược được mở)
+- mỗi process sẽ có 1 tập hợp FD của nó( các process có thể có trùng FB )
+- là 1 interface để process có thể đọc/ghi
+
+```
+fb = create("hello.txt", 777)
+write(fb, "hi", 2)
+```
+
+```go
+listener, err := net.Listen("tcp", 3000)
+conn, err := listener.Accept()
+// conn là File descriptor của file biểu diễn socket 
+```
 
 ## IO models
+- Reading data from network socket
+  - 1. Data arrived from network to kernel buffer
+  - 2. Switch mode and copy data from Kernel buffer to User buffer
+  - read data -> [Port] -> [Kernel Space] -> [System call(API) -> Switch context and copy] -> [User space]
+  - tại sao lại cần bước copy -> vấn đề bảo mật (không cho ứng dụng của user-space đi thẳng đến kernel-space)
+
 
 ### Blocking IO
--
+
+<img src="./blockingio.png">
+
 
 ### Non-Blocking IO
-- 
-- need to keep asking
+
+<img src="./nonblockingio.png">
+
+- If haven't the data, try again later
+- need to keep asking ( hỏi lại liên tục )
 
 ### Async IO
-- 
+<img src="./asyncio.png">
 
 - pros: 
+  - truly async
+  - disk I/O, large file transfer scenarios with long I/O latency
 - cons:
+  - overhead for small data
 
 ### IO Multiplexing
-- 
+
+- Idea : use 1 thread to manage multiple connections simultaneously without getting blocked
+
+<img src="./iomultiplexing1.png">
+
+
+<img src="./iomultiplexing2.png">
 
 #### Linux System calls
+- epoll_create(): create an epoll instance, return epoll FD
+- epoll_ctr(): add/remove a FD to the monitoring list
+- epoll_wait(): wait and return FDs that are ready for IO
 
 #### MacOS System calls
