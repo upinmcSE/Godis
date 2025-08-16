@@ -30,12 +30,35 @@ Summary:
 
 
 ## RESP
+- RESP là protocol phục vụ cho Redis client giao tiếp với Redis server
+- Reliable (vì là build on top of TCP)
+- Simple to implement
+- Fast to parse
+- Human-readable
+
+- Support different types of data:
+  - string
+  - array
+  - integer, double
+  - boolean
+  - error
+  - ...
+
+### Simple String
 
 
+### Bulk String
 
 
+### Integer
+- 
 
+### Array
 
+### Error
+-
+-
+-
 
 ## Q/A
 - RESP balance giữa readable với high performance vậy ạ. Tại sao json cũng readable nhưng mà performance lại kém vậy ạ
@@ -46,8 +69,10 @@ Summary:
     type: 0,
     value: "hello"
 }
-
+```
+```
+"hello" => +hello\r\n
 ```
 
-=> 
+=> trông rất cồng cành và tốn resource(nhiều byte hơn so với RESP) 
 - 

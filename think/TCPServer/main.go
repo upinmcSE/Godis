@@ -1,24 +1,46 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net"
-	"time"
 )
+
+func readCommand(conn net.Conn) (string, error) {
+	var buf []byte = make([]byte, 512)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return "", err
+	}
+	return string(buf[:n]), nil
+}
+
+func respond(cmd string, conn net.Conn) error {
+	if _, err := conn.Write([]byte(cmd)); err != nil {
+		return err
+	}
+	return nil
+}
 
 func handleConnection(conn net.Conn) {
 	// read data from client
 	log.Println(conn.RemoteAddr())
-	var buf []byte = make([]byte, 1000)
-	_, err := conn.Read(buf)
-	if err != nil {
-		log.Fatal(err)
+	for {
+		cmd, err := readCommand(conn)
+		if err != nil {
+			err := conn.Close()
+			if err != nil {
+				return
+			}
+			log.Println("client disconnected", conn.RemoteAddr())
+			if err == io.EOF {
+				break
+			}
+		}
+		if err = respond(cmd, conn); err != nil {
+			log.Println("err write: ", err)
+		}
 	}
-	// process
-	time.Sleep(time.Second * 10)
-	// reply
-	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\nHello, world\r\n"))
-	conn.Close()
 }
 
 // thread per connection
