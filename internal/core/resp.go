@@ -1,10 +1,10 @@
-package resp
+package core
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	"strconv"
+	"strings"
 )
 
 const CRLF string = "\r\n"
@@ -23,17 +23,22 @@ func readSimpleString(data []byte) (string, int, error) {
 
 // :123\r\n => 123
 func readInt64(data []byte) (int64, int, error) {
+	var res int64 = 0
 	pos := 1
-	for pos < len(data) && data[pos] != '\r' {
+	var sign int64 = 1
+	if data[pos] == '-' {
+		sign = -1
+		pos++
+	}
+	if data[pos] == '+' {
+		pos++
+	}
+	for data[pos] != '\r' {
+		res = res*10 + int64(data[pos]-'0')
 		pos++
 	}
 
-	val, err := strconv.ParseInt(string(data[1:pos]), 10, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid integer: %w", err)
-	}
-
-	return val, pos + 2, nil
+	return sign * res, pos + 2, nil
 }
 
 func readError(data []byte) (string, int, error) {
@@ -106,6 +111,7 @@ func encodeStringArray(sa []string) []byte {
 	return []byte(fmt.Sprintf("*%d\r\n%s", len(sa), buf.Bytes()))
 }
 
+// raw data => RESP format data
 func Encode(value interface{}, isSimpleString bool) []byte {
 	switch v := value.(type) {
 	case string:
@@ -136,4 +142,19 @@ func Encode(value interface{}, isSimpleString bool) []byte {
 	default:
 		return RespNil
 	}
+}
+
+func ParseCmd(data []byte) (*Command, error) {
+	value, err := Decode(data)
+	if err != nil {
+		return nil, err
+	}
+
+	array := value.([]interface{})
+	tokens := make([]string, len(array))
+	for i := range tokens {
+		tokens[i] = array[i].(string)
+	}
+	res := &Command{Cmd: strings.ToUpper(tokens[0]), Args: tokens[1:]}
+	return res, nil
 }

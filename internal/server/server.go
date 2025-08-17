@@ -3,23 +3,26 @@ package server
 import (
 	"errors"
 	"github.com/upinmcSE/godis/internal/config"
+	"github.com/upinmcSE/godis/internal/constant"
+	"github.com/upinmcSE/godis/internal/core"
 	"github.com/upinmcSE/godis/internal/core/io_multiplexing"
 	"io"
 	"log"
 	"net"
 	"syscall"
+	"time"
 )
 
-func readCommand(fd int) (string, error) {
+func readCommand(fd int) (*core.Command, error) {
 	var buf = make([]byte, 512)
 	n, err := syscall.Read(fd, buf)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if n == 0 {
-		return "", io.EOF
+		return nil, io.EOF
 	}
-	return string(buf[:n]), nil
+	return core.ParseCmd(buf)
 }
 
 func respond(data string, fd int) error {
@@ -71,7 +74,13 @@ func RunIoMultiplexingServer() {
 
 	// step 3
 	var events = make([]io_multiplexing.Event, config.MaxConnection)
+	var lastActiveExpireExecTime = time.Now()
 	for {
+		// after handle request will execute delete key expired-time
+		if time.Now().After(lastActiveExpireExecTime.Add(constant.ActiveExpireFrequency)) {
+			core.ActiveDeleteExpiredKeys()
+			lastActiveExpireExecTime = time.Now()
+		}
 		// wait for file descriptors in the monitoring list to be ready for I/O
 		// it is a blocking call.
 		events, err = ioMultiplexer.Wait()
@@ -111,7 +120,10 @@ func RunIoMultiplexingServer() {
 					log.Println("read error:", err)
 					continue
 				}
-				if err = respond(cmd, events[i].Fd); err != nil {
+				//if err = respond(cmd, events[i].Fd); err != nil {
+				//	log.Println("err write:", err)
+				//}
+				if err = core.ExecuteAndResponse(cmd, events[i].Fd); err != nil {
 					log.Println("err write:", err)
 				}
 			}
