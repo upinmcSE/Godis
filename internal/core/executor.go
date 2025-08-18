@@ -76,11 +76,11 @@ func cmdTTL(args []string) []byte {
 		return constant.TtlKeyExistNoExpire
 	}
 
-	remainMs := exp - uint64(time.Now().UnixMilli())
+	remainMs := exp - time.Now().UnixMilli()
 	if remainMs < 0 {
 		return constant.TtlKeyNotExist
 	}
-	return Encode(int64(remainMs/1000), false)
+	return Encode(remainMs/1000, false)
 }
 
 func cmdEXPIRE(args []string) []byte {
