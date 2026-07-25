@@ -1,132 +1,67 @@
 package server
 
 import (
-	"errors"
-	"github.com/upinmcSE/godis/internal/config"
-	"github.com/upinmcSE/godis/internal/constant"
-	"github.com/upinmcSE/godis/internal/core"
-	"github.com/upinmcSE/godis/internal/core/io_multiplexing"
 	"io"
-	"log"
 	"net"
-	"syscall"
-	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/upinmcSE/godis/internal/config"
 )
 
-func readCommand(fd int) (*core.Command, error) {
-	var buf = make([]byte, 512)
-	n, err := syscall.Read(fd, buf)
+func readCommand(conn net.Conn) (string, error) {
+	var buf []byte = make([]byte, 512)
+	n, err := conn.Read(buf)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	if n == 0 {
-		return nil, io.EOF
-	}
-	return core.ParseCmd(buf)
+	return string(buf[:n]), nil
 }
 
-func respond(data string, fd int) error {
-	if _, err := syscall.Write(fd, []byte(data)); err != nil {
+func response(cmd string, conn net.Conn) error {
+	if _, err := conn.Write([]byte(cmd)); err != nil {
 		return err
 	}
 	return nil
 }
 
-func RunIoMultiplexingServer() {
-	log.Println("starting an I/O Multiplexing TCP server on", config.Port)
+func handleConnection(conn net.Conn, log *zerolog.Logger) {
+	log.Info().Msg("Request from ip: " + conn.RemoteAddr().String())
 
-	// step 1
-	listener, err := net.Listen(config.Protocol, config.Port)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer listener.Close()
-
-	// Get the file descriptor from the listener
-	tcpListener, ok := listener.(*net.TCPListener)
-	if !ok {
-		log.Fatal("listener is not a TCPListener")
-	}
-	listenerFile, err := tcpListener.File()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer listenerFile.Close()
-
-	serverFd := int(listenerFile.Fd())
-
-	// step 2
-	// Create an ioMultiplexer instance (epoll in Linux, kqueue in MacOS)
-	ioMultiplexer, err := io_multiplexing.CreateIOMultiplexer()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer ioMultiplexer.Close()
-
-	// Monitor "read" events on the Server FD
-	if err = ioMultiplexer.Monitor(
-		io_multiplexing.Event{
-			Fd: serverFd,
-			Op: io_multiplexing.OpRead,
-		}); err != nil {
-		log.Fatal(err)
-	}
-
-	// step 3
-	var events = make([]io_multiplexing.Event, config.MaxConnection)
-	var lastActiveExpireExecTime = time.Now()
 	for {
-		// after handle request will execute delete key expired-time
-		if time.Now().After(lastActiveExpireExecTime.Add(constant.ActiveExpireFrequency)) {
-			core.ActiveDeleteExpiredKeys()
-			lastActiveExpireExecTime = time.Now()
-		}
-		// wait for file descriptors in the monitoring list to be ready for I/O
-		// it is a blocking call.
-		events, err = ioMultiplexer.Wait()
+		cmd, err := readCommand(conn)
 		if err != nil {
-			continue
-		}
-
-		// handle events
-		for i := 0; i < len(events); i++ {
-			if events[i].Fd == serverFd {
-				log.Printf("new client is trying to connect")
-
-				// set up new connection
-				connFd, _, err := syscall.Accept(serverFd)
-				if err != nil {
-					log.Println("err", err)
-					continue
-				}
-				log.Printf("set up a new connection")
-
-				// ask epoll to monitor this connection
-				if err = ioMultiplexer.Monitor(io_multiplexing.Event{
-					Fd: connFd,
-					Op: io_multiplexing.OpRead,
-				}); err != nil {
-					log.Fatal(err)
-				}
-			} else {
-				cmd, err := readCommand(events[i].Fd)
-				// log.Println("command: ", cmd)
-				if err != nil {
-					if err == io.EOF || errors.Is(err, syscall.ECONNRESET) {
-						log.Println("client disconnected")
-						_ = syscall.Close(events[i].Fd)
-						continue
-					}
-					log.Println("read error:", err)
-					continue
-				}
-				//if err = respond(cmd, events[i].Fd); err != nil {
-				//	log.Println("err write:", err)
-				//}
-				if err = core.ExecuteAndResponse(cmd, events[i].Fd); err != nil {
-					log.Println("err write:", err)
-				}
+			err := conn.Close()
+			if err != nil {
+				return
+			}
+			log.Error().Msg("Client disconnected: " + conn.RemoteAddr().String())
+			if err == io.EOF {
+				break
 			}
 		}
+		if err = response(cmd, conn); err != nil {
+			log.Fatal().Msg("Error write: " + err.Error())
+		}
+		log.Info().Msg("Client send content: " + cmd)
+	}
+}
+
+func RunServer(log *zerolog.Logger) {
+	log.Info().Msg("Start an TCP server on " + config.Port)
+
+	listener, err := net.Listen(config.Protocol, config.Port)
+	if err != nil {
+		log.Error().Msg(err.Error())
+	}
+
+	defer listener.Close()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Error().Msg(err.Error())
+		}
+
+		go handleConnection(conn, log)
 	}
 }
