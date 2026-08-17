@@ -34,19 +34,19 @@ conn, err := listener.Accept()
   - tại sao lại cần bước copy -> vấn đề bảo mật (không cho ứng dụng của user-space đi thẳng đến kernel-space)
 
 
-### Blocking IO
+### 1. Blocking IO
 
 <img src="./blockingio.png">
 
 
-### Non-Blocking IO
+### 2. Non-Blocking IO
 
 <img src="./nonblockingio.png">
 
 - If haven't the data, try again later
 - need to keep asking ( hỏi lại liên tục )
 
-### Async IO
+### 3. Async IO
 <img src="./asyncio.png">
 
 - pros: 
@@ -55,7 +55,7 @@ conn, err := listener.Accept()
 - cons:
   - overhead for small data
 
-### IO Multiplexing
+### 4. IO Multiplexing
 
 - Idea : use 1 thread to manage multiple connections simultaneously without getting blocked
 
@@ -70,3 +70,5 @@ conn, err := listener.Accept()
 - epoll_wait(): wait and return FDs that are ready for IO
 
 #### MacOS System calls
+- kqueue(): create an kqueue instance, return kqueue FD
+- kevent(): register events with the queue, and return any pending events to the user
