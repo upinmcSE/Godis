@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/upinmcSE/godis/internal/constant"
 )
 
 const CRLF string = "\r\n"
-
-var RespNil = []byte("$-1\r\n")
 
 // +OK\r\n => OK, 5
 func readSimpleString(data []byte) (string, int, error) {
@@ -55,9 +55,9 @@ func readBulkString(data []byte) (string, int, error) {
 }
 
 // *2\r\n$5\r\nhello\r\n$5\r\nworld\r\n => {"hello", "world"}
-func readArray(data []byte) (interface{}, int, error) {
+func readArray(data []byte) (any, int, error) {
 	length, pos := readLen(data)
-	var res []interface{} = make([]interface{}, length)
+	var res []any = make([]any, length)
 
 	for i := range res {
 		elem, delta, err := DecodeOne(data[pos:])
@@ -70,7 +70,7 @@ func readArray(data []byte) (interface{}, int, error) {
 	return res, pos, nil
 }
 
-func DecodeOne(data []byte) (interface{}, int, error) {
+func DecodeOne(data []byte) (any, int, error) {
 	if len(data) == 0 {
 		return nil, 0, errors.New("No data")
 	}
@@ -90,16 +90,16 @@ func DecodeOne(data []byte) (interface{}, int, error) {
 }
 
 // RESP format data => raw data
-func Decode(data []byte) (interface{}, error) {
+func Decode(data []byte) (any, error) {
 	res, _, err := DecodeOne(data)
 	return res, err
 }
 
 func encodeString(value string, isSimpleString bool) []byte {
 	if isSimpleString {
-		return []byte(fmt.Sprintf("+%s%s", value, CRLF))
+		return fmt.Appendf(nil, "+%s%s", value, CRLF)
 	}
-	return []byte(fmt.Sprintf("$%d%s%s%s", len(value), CRLF, value, CRLF))
+	return fmt.Appendf(nil, "$%d%s%s%s", len(value), CRLF, value, CRLF)
 }
 
 func encodeStringArray(sa []string) []byte {
@@ -108,18 +108,18 @@ func encodeStringArray(sa []string) []byte {
 	for _, s := range sa {
 		buf.Write(encodeString(s, false))
 	}
-	return []byte(fmt.Sprintf("*%d\r\n%s", len(sa), buf.Bytes()))
+	return fmt.Appendf(nil, "*%d\r\n%s", len(sa), buf.Bytes())
 }
 
 // Raw data => RESP format data
-func Encode(value interface{}, isSimpleString bool) []byte {
+func Encode(value any, isSimpleString bool) []byte {
 	switch v := value.(type) {
 	case string:
 		return encodeString(v, isSimpleString)
 	case int64, int32, int16, int8, int:
-		return []byte(fmt.Sprintf(":%d\r\n", v))
+		return fmt.Appendf(nil, ":%d\r\n", v)
 	case error:
-		return []byte(fmt.Sprintf("-%s\r\n", v))
+		return fmt.Appendf(nil, "-%s\r\n", v)
 	case []string:
 		return encodeStringArray(value.([]string))
 	case [][]string:
@@ -128,15 +128,15 @@ func Encode(value interface{}, isSimpleString bool) []byte {
 		for _, sa := range value.([][]string) {
 			buf.Write(encodeStringArray(sa))
 		}
-		return []byte(fmt.Sprintf("*%d\r\n%s", len(value.([][]string)), buf.Bytes()))
-	case []interface{}:
+		return fmt.Appendf(nil, "*%d\r\n%s", len(value.([][]string)), buf.Bytes())
+	case []any:
 		var b []byte
 		buf := bytes.NewBuffer(b)
-		for _, x := range value.([]interface{}) {
+		for _, x := range value.([]any) {
 			buf.Write(Encode(x, false))
 		}
-		return []byte(fmt.Sprintf("*%d\r\n%s", len(value.([]interface{})), buf.Bytes()))
+		return fmt.Appendf(nil, "*%d\r\n%s", len(value.([]any)), buf.Bytes())
 	default:
-		return RespNil
+		return constant.RespNil
 	}
 }

@@ -131,6 +131,9 @@ Example:
 Example:
 - key not found\r\n
 
+- RESP recall
+![resp](./image/resp.png)
+
 ## Q/A
 - RESP balance giữa readable với high performance vậy ạ. Tại sao json cũng readable nhưng mà performance lại kém vậy ạ
 

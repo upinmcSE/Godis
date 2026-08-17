@@ -1,6 +1,6 @@
 ## PING
 
-- [Redis-CLI] ---send---> [data byte[]] ---RESP Decoder---> [Command: array of string] ----> [Execute Command] ---RESP Encoder---> [data byte[]] ----reply---> [Redis-CLI]
+![ping](./image/note4-ping.png)
 
 
 ## What is store data?
